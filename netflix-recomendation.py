@@ -165,7 +165,7 @@ indices = pd.Series(filters.index, index=filters['title'])
 # In[ ]:
 
 
-def get_recommendations_new(title, cosine_sim=cosine_sim):
+def get_recommendations_new(title, cosine_sim):
     title=title.replace(' ','').lower()
     idx = indices[title]
 
