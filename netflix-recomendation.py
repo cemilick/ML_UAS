@@ -1,173 +1,286 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[20]:
-import pandas as pd
+# # <center> 📺Netflix EDA and Movie Recommendation System😎🍿
+
+# ![](https://www.extremetech.com/wp-content/uploads/2016/03/Netflix-Feature.jpg)
+
+# Netflix is the world's leading streaming entertainment service with 208 million paid memberships in over 190 countries enjoying TV series, documentaries and feature films across a wide variety of genres and languages. Members can watch as much as they want, anytime, anywhere, on any internet-connected screen. Members can play, pause and resume watching, all without commercials or commitments.
+
+# ### Here I have done a detailed analysis of netflix content data with awesome visualizations and built a Recommendation System.
+
+# ## 1. Importing libraries
+
+# In[ ]:
+
+
 import numpy as np
+import pandas as pd
+import seaborn as sb
+
+import warnings
+warnings.filterwarnings("ignore")
 
 
-# In[2]:
-data = pd.read_csv('netflix_titles.csv')
+# ### Reading Data
+
+# In[ ]:
 
 
-# In[3]:
+df = pd.read_csv("H:\Project\Python\MachineLearning\projek akhir/netflix_titles.csv")
 
 
-data.head()
+# ## 2. Data Exploration
+
+# In[ ]:
 
 
-# In[4]:
+# In[ ]:
 
 
-import matplotlib.pyplot as plt
-import networkx as nx
+# - There are missing values in column director,cast,country and date_added.
+# - We can't randomly fill the missing values in columns of director and cast, so we can drop them.
+# - For minimal number of missing values in country and date_added,rating, we can fill them using mode(most common value) and mean.
+
+# ### --> Handling missing values
+
+# In[ ]:
 
 
-# In[5]:
+df['country'] = df['country'].fillna(df['country'].mode()[0])
+df['date_added'] = df['date_added'].fillna(df['date_added'].mode()[0])
+df['rating'] = df['rating'].fillna(df['country'].mode()[0])
 
 
-data.describe()
+# In[ ]:
 
 
-# In[6]:
+df = df.dropna( how='any',subset=['cast', 'director'])
 
 
-data["date_added"] = pd.to_datetime(data['date_added'])
-data['year'] = data['date_added'].dt.year
-data['month'] = data['date_added'].dt.month
-data['day'] = data['date_added'].dt.day
+
+# - dataset has 0 duplicated values.
+
+# ### --> Cleaning the data
+
+# Adding some new columns:
+# - listed_in - Genre
+# * Year Added - year_add
+# * Month Added - month_add
+# * Princial Country - country_main 
+
+# In[ ]:
 
 
-# In[7]:
+#Rename the 'listed_in' column as 'Genre' for easy understanding
+df = df.rename(columns={"listed_in":"Genre"})
+df['Genre'] = df['Genre'].apply(lambda x: x.split(",")[0])
+df['year_add'] = df['date_added'].apply(lambda x: x.split(" ")[-1])
+df['month_add'] = df['date_added'].apply(lambda x: x.split(" ")[0])
+df['country_main'] = df['country'].apply(lambda x: x.split(",")[0])
 
 
-data['directors']=data['director'].apply(lambda x: [] if pd.isna(x) else [i.strip() for i in x.split(',')])
-data['actors']=data['cast'].apply(lambda x: [] if pd.isna(x) else [i.strip() for i in x.split(',')])
-data['categories']=data['listed_in'].apply(lambda x: [] if pd.isna(x) else [i.strip() for i in x.split(',')])
-data['countries']=data['country'].apply(lambda x: [] if pd.isna(x) else [i.strip() for i in x.split(',')])
-data.head()
+# -- Making two new dataframes, one with movies collection and other with TV shows collection:
+# * movie_df
+# * tv_df
+
+# In[ ]:
 
 
-# In[8]:
+
+# ## 4. Netflix Recommendation System
+
+# ## Content Based Filtering
+
+# - For this recommender system the content of the movie (cast, description, director,genre etc) is used to find its similarity with other movies. Then the movies that are most likely to be similar are recommended.
+
+# ![](https://miro.medium.com/max/998/1*O_GU8xLVlFx8WweIzKNCNw.png)
+
+# ## Plot description based Recommender
+
+# - We will calculate similarity scores for all movies based on their plot descriptions and recommend movies based on that similarity score. The plot description is given in the **description** feature of our dataset.
+
+# In[ ]:
+
+
+df['description'].head()
+
+
+# We need to convert the word vector of each overview.We'll compute Term Frequency-Inverse Document Frequency (TF-IDF) vectors for each description.The overall importance of each word to the documents in which they appear is equal to TF * IDF.This is done to reduce the importance of words that occur frequently in plot overviews and therefore, their significance in computing the final similarity score.
+
+# In[ ]:
 
 
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import linear_kernel
-from sklearn.cluster import MiniBatchKMeans
-text_content = data['description']
-vector = TfidfVectorizer(max_df=0.3,        
-                             min_df=1,     
-                             stop_words='english', 
-                             lowercase=True, 
-                             use_idf=True, 
-                             norm=u'l2',
-                             smooth_idf=True
-                            )
-tfidf = vector.fit_transform(text_content)
-kmeans = MiniBatchKMeans(n_clusters = 200)
-kmeans.fit(tfidf)
-centers = kmeans.cluster_centers_.argsort()[:,::-1]
-terms = vector.get_feature_names()   
-request_transform = vector.transform(data['description'])
-data['cluster'] = kmeans.predict(request_transform) 
-data['cluster'].value_counts().head()
 
+#Define a TF-IDF Vectorizer Object. Remove all english stop words such as 'the', 'a'
+tfidf = TfidfVectorizer(stop_words='english')
 
-# In[9]:
-
-
-print(request_transform)
-
-
-# In[10]:
-
-
-print(data['cluster'])
-
-
-# In[11]:
-
-
-def find_similar(tfidf_matrix, index, top_n = 5):
-    cosine_similarities = linear_kernel(tfidf_matrix[index:index+1], tfidf_matrix).flatten()
-    related_docs_indices = [i for i in cosine_similarities.argsort()[::-1] if i != index]
-    return [index for index in related_docs_indices][0:top_n] 
-
-
-# In[12]:
-
-
-G=nx.Graph(label='NETFLIX')
-for i,row in data.iterrows():
-    G.add_node(row['title'],key=row['show_id'],label='MOVIE',mtype=row['type'],rating=row['rating'])
-    for j in row['actors']:
-        G.add_node(j,label='PERSON')
-        G.add_edge(row['title'],j,label='ACTED_IN')
-    for j in row['directors']:
-        G.add_node(j,label='PERSON')
-        G.add_edge(row['title'],j,label='DIRECTED')
-    for j in row['categories']:
-        G.add_node(j,label='CAT')
-        G.add_edge(row['title'],j,label='CAT_IN')
-    for j in row['countries']:
-        G.add_node(j,label='COUNTRY')
-        G.add_edge(row['title'],j,label='COUNTRY_IN')
-for i,row in data.iterrows():
-    similar=find_similar(tfidf,i,top_n=5)
-    for e in similar:
-        G.add_edge(row['title'],data['title'].loc[e],label='SIMILAR_TO')
-    
-
-
-# In[13]:
-
-
-G.number_of_nodes()
-
-
-# In[14]:
-
-
-G.number_of_edges()
-
-
-# In[15]:
-
-
-import math as math
-def get_recommendation(root):
-    commons_dict = {}
-    for e in G.neighbors(root):
-        for e2 in G.neighbors(e):
-            if e2==root:
-                continue
-            if G.nodes[e2]['label']=="MOVIE":
-                commons = commons_dict.get(e2)
-                if commons==None:
-                    commons_dict.update({e2 : [e]})
-                else:
-                    commons.append(e)
-                    commons_dict.update({e2 : commons})
-    movies=[]
-    weight=[]
-    for key, values in commons_dict.items():
-        w=0.0
-        for e in values:
-            w=w+1/math.log(G.degree(e))
-        movies.append(key) 
-        weight.append(w)
-
-    result = np.vstack((movies, weight)).T
-    result = result.tolist()
-    result = sorted(result, key=lambda x: x[1], reverse=True)
-    
-    return result
 
 # In[ ]:
-title = "Transformers Prime"
-result = get_recommendation(title)
-print("*"*40+"\n Recommendation for '" + title +"'\n"+"*"*40)
-print(result[:5])
+
+
+#Replace NaN with an empty string
+df['description'] = df['description'].fillna('')
+
+#Construct the required TF-IDF matrix by fitting and transforming the data
+tfidf_matrix = tfidf.fit_transform(df['description'])
+
+#Output the shape of tfidf_matrix
+tfidf_matrix.shape
+
+
+# Since we have used the TF-IDF vectorizer, calculating the dot product will directly give us the cosine similarity score. Therefore, we will use sklearn's **linear_kernel()** instead of cosine_similarities() since it is faster.
+
+# In[ ]:
+
+
+# Import linear_kernel
+from sklearn.metrics.pairwise import linear_kernel
+
+# Compute the cosine similarity matrix
+cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+
+
+# -- we need a mechanism to identify the index of a movie in our metadata DataFrame, given its title.
+
+# In[ ]:
+
+
+#Construct a reverse map of indices and movie titles
+indices = pd.Series(df.index, index=df['title']).drop_duplicates()
+
+
+# -- Let's define a function that takes in a movie title as an input and outputs a list of the 10 most similar movies.
+
+# In[ ]:
+
+
+def get_recommendations(title, cosine_sim=cosine_sim):
+    idx = indices[title]
+
+    # Get the pairwsie similarity scores of all movies with that movie
+    sim_scores = list(enumerate(cosine_sim[idx]))
+
+    # Sort the movies based on the similarity scores
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+    # Get the scores of the 10 most similar movies
+    sim_scores = sim_scores[1:11]
+
+    # Get the movie indices
+    movie_indices = [i[0] for i in sim_scores]
+
+    # Return the top 10 most similar movies
+    return df['title'].iloc[movie_indices]
+
+
+
+# - This is completely plot based recommendations. we can see these are not so accurate, so we can try to add more metrics to improve model performance.
+
+# ## Multiple metrics(Genre,cast,director)  based Recommender System
+
+# From the Genre,cast and director features, we need to extract the three most important actors, the director and genres associated with that movie.
+
+# In[ ]:
+
+
+features=['Genre','director','cast','description','title']
+filters = df[features]
+
+
+# In[ ]:
+
+
+#Cleaning the data by making all the words in lower case.
+def clean_data(x):
+        return str.lower(x.replace(" ", ""))
+
+
+# In[ ]:
+
+
+for feature in features:
+    filters[feature] = filters[feature].apply(clean_data)
+    
+filters.head()
+
+
+# - We can now create our "metadata soup", which is a string that contains all the metadata that we want to feed to our vectorizer.
+
+# In[ ]:
+
+
+def create_soup(x):
+    return x['director'] + ' ' + x['cast'] + ' ' +x['Genre']+' '+ x['description']
+
+
+# In[ ]:
+
+
+filters['soup'] = filters.apply(create_soup, axis=1)
+
+
+# The next steps are the same as what we did with our plot description based recommender. One important difference is that we use the **CountVectorizer()** instead of TF-IDF.
+
+# In[ ]:
+
+
+# Import CountVectorizer and create the count matrix
+from sklearn.feature_extraction.text import CountVectorizer
+
+count = CountVectorizer(stop_words='english')
+count_matrix = count.fit_transform(filters['soup'])
+
+
+# In[ ]:
+
+
+# Compute the Cosine Similarity matrix based on the count_matrix
+from sklearn.metrics.pairwise import cosine_similarity
+
+cosine_sim2 = cosine_similarity(count_matrix, count_matrix)
+
+
+# In[ ]:
+
+
+filters
+
+
+# In[ ]:
+
+
+# Reset index of our main DataFrame and construct reverse mapping as before
+filters=filters.reset_index()
+indices = pd.Series(filters.index, index=filters['title'])
+
+
+# In[ ]:
+
+
+def get_recommendations_new(title, cosine_sim=cosine_sim):
+    title=title.replace(' ','').lower()
+    idx = indices[title]
+
+    # Get the pairwsie similarity scores of all movies with that movie
+    sim_scores = list(enumerate(cosine_sim[idx]))
+
+    # Sort the movies based on the similarity scores
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+    # Get the scores of the 10 most similar movies
+    sim_scores = sim_scores[1:11]
+
+    # Get the movie indices
+    movie_indices = [i[0] for i in sim_scores]
+
+    # Return the top 10 most similar movies
+    return df['title'].iloc[movie_indices]
+
+
+# In[ ]:
+
 
 #In[ ]:
 from flask import request
@@ -176,14 +289,14 @@ from flask import Flask, render_template
 app = Flask(__name__)
 @app.route("/")
 def hello():
-    list_film = data['title'][0:700].tolist()
+    list_film = df['title'][0:700].tolist()
     return render_template('index.html',film = list_film)
  
 @app.route("/submit", methods=['POST'])
 def submit():
-    list_film = data['title'][0:700].tolist()
+    list_film = df['title'][0:700].tolist()
     title = request.form['film']
-    result = get_recommendation(title)
+    result = get_recommendations_new(title, cosine_sim2).to_list()
 
     return render_template('index.html', result = result[0:10], title = title, film = list_film)
  
