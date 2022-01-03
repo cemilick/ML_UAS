@@ -23,7 +23,7 @@ import seaborn as sb
 # In[ ]:
 
 
-df = pd.read_csv("netflix_titles.csv")
+df = pd.read_csv("H:\Project\Python\MachineLearning\projek akhir/netflix_titles.csv")
 
 
 # ## 2. Data Exploration
@@ -195,12 +195,12 @@ from flask import Flask, render_template
 app = Flask(__name__)
 @app.route("/")
 def hello():
-    list_film = df['title'][0:100].tolist()
+    list_film = df['title'][0:400].tolist()
     return render_template('index.html',film = list_film)
  
-@app.route("/submit", methods=['POST'])
+@app.route("/", methods=['POST'])
 def submit():
-    list_film = df['title'][0:100].tolist()
+    list_film = df['title'][0:400].tolist()
     title = request.form['film']
     result = get_recommendations_new(title, cosine_sim2).to_list()
 
