@@ -23,7 +23,7 @@ import seaborn as sb
 # In[ ]:
 
 
-df = pd.read_csv("H:\Project\Python\MachineLearning\projek akhir/netflix_titles.csv")
+df = pd.read_csv("netflix_titles.csv")
 
 
 # ## 2. Data Exploration
