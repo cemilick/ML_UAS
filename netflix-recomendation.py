@@ -18,10 +18,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sb
 
-import warnings
-warnings.filterwarnings("ignore")
-
-
 # ### Reading Data
 
 # In[ ]:
@@ -79,15 +75,6 @@ df['year_add'] = df['date_added'].apply(lambda x: x.split(" ")[-1])
 df['month_add'] = df['date_added'].apply(lambda x: x.split(" ")[0])
 df['country_main'] = df['country'].apply(lambda x: x.split(",")[0])
 
-
-# -- Making two new dataframes, one with movies collection and other with TV shows collection:
-# * movie_df
-# * tv_df
-
-# In[ ]:
-
-
-
 # ## 4. Netflix Recommendation System
 
 # ## Content Based Filtering
@@ -100,87 +87,6 @@ df['country_main'] = df['country'].apply(lambda x: x.split(",")[0])
 
 # - We will calculate similarity scores for all movies based on their plot descriptions and recommend movies based on that similarity score. The plot description is given in the **description** feature of our dataset.
 
-# In[ ]:
-
-
-df['description'].head()
-
-
-# We need to convert the word vector of each overview.We'll compute Term Frequency-Inverse Document Frequency (TF-IDF) vectors for each description.The overall importance of each word to the documents in which they appear is equal to TF * IDF.This is done to reduce the importance of words that occur frequently in plot overviews and therefore, their significance in computing the final similarity score.
-
-# In[ ]:
-
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-
-#Define a TF-IDF Vectorizer Object. Remove all english stop words such as 'the', 'a'
-tfidf = TfidfVectorizer(stop_words='english')
-
-
-# In[ ]:
-
-
-#Replace NaN with an empty string
-df['description'] = df['description'].fillna('')
-
-#Construct the required TF-IDF matrix by fitting and transforming the data
-tfidf_matrix = tfidf.fit_transform(df['description'])
-
-#Output the shape of tfidf_matrix
-tfidf_matrix.shape
-
-
-# Since we have used the TF-IDF vectorizer, calculating the dot product will directly give us the cosine similarity score. Therefore, we will use sklearn's **linear_kernel()** instead of cosine_similarities() since it is faster.
-
-# In[ ]:
-
-
-# Import linear_kernel
-from sklearn.metrics.pairwise import linear_kernel
-
-# Compute the cosine similarity matrix
-cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
-
-
-# -- we need a mechanism to identify the index of a movie in our metadata DataFrame, given its title.
-
-# In[ ]:
-
-
-#Construct a reverse map of indices and movie titles
-indices = pd.Series(df.index, index=df['title']).drop_duplicates()
-
-
-# -- Let's define a function that takes in a movie title as an input and outputs a list of the 10 most similar movies.
-
-# In[ ]:
-
-
-def get_recommendations(title, cosine_sim=cosine_sim):
-    idx = indices[title]
-
-    # Get the pairwsie similarity scores of all movies with that movie
-    sim_scores = list(enumerate(cosine_sim[idx]))
-
-    # Sort the movies based on the similarity scores
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-
-    # Get the scores of the 10 most similar movies
-    sim_scores = sim_scores[1:11]
-
-    # Get the movie indices
-    movie_indices = [i[0] for i in sim_scores]
-
-    # Return the top 10 most similar movies
-    return df['title'].iloc[movie_indices]
-
-
-
-# - This is completely plot based recommendations. we can see these are not so accurate, so we can try to add more metrics to improve model performance.
-
-# ## Multiple metrics(Genre,cast,director)  based Recommender System
-
-# From the Genre,cast and director features, we need to extract the three most important actors, the director and genres associated with that movie.
 
 # In[ ]:
 
@@ -289,12 +195,12 @@ from flask import Flask, render_template
 app = Flask(__name__)
 @app.route("/")
 def hello():
-    list_film = df['title'][0:700].tolist()
+    list_film = df['title'][0:100].tolist()
     return render_template('index.html',film = list_film)
  
 @app.route("/submit", methods=['POST'])
 def submit():
-    list_film = df['title'][0:700].tolist()
+    list_film = df['title'][0:100].tolist()
     title = request.form['film']
     result = get_recommendations_new(title, cosine_sim2).to_list()
 
