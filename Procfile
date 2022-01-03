@@ -1,1 +1,1 @@
-web: gunicorn netflix-recomendation:app --log-file -
+web: gunicorn -b :$PORT netflix-recomendation:app
