@@ -1,188 +1,132 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# # <center> 📺Netflix EDA and Movie Recommendation System😎🍿
-
-# ![](https://www.extremetech.com/wp-content/uploads/2016/03/Netflix-Feature.jpg)
-
-# Netflix is the world's leading streaming entertainment service with 208 million paid memberships in over 190 countries enjoying TV series, documentaries and feature films across a wide variety of genres and languages. Members can watch as much as they want, anytime, anywhere, on any internet-connected screen. Members can play, pause and resume watching, all without commercials or commitments.
-
-# ### Here I have done a detailed analysis of netflix content data with awesome visualizations and built a Recommendation System.
-
-# ## 1. Importing libraries
 
 # In[ ]:
-
-
+# --------Importing Library---------
 import numpy as np
 import pandas as pd
 import seaborn as sb
 
-# ### Reading Data
-
 # In[ ]:
-
-
+# --------Read Dataset-------------
 df = pd.read_csv("netflix_titles.csv")
 
-
-# ## 2. Data Exploration
-
 # In[ ]:
 
-
-# In[ ]:
-
-
-# - There are missing values in column director,cast,country and date_added.
-# - We can't randomly fill the missing values in columns of director and cast, so we can drop them.
-# - For minimal number of missing values in country and date_added,rating, we can fill them using mode(most common value) and mean.
-
-# ### --> Handling missing values
-
-# In[ ]:
-
+#-------Data Cleaning--------
+#mengganti data country,date_added, dan rating yang kosong dengan nilai yang paling sering muncul (menggunakan fungsi mode())
 
 df['country'] = df['country'].fillna(df['country'].mode()[0])
 df['date_added'] = df['date_added'].fillna(df['date_added'].mode()[0])
-df['rating'] = df['rating'].fillna(df['country'].mode()[0])
-
+df['rating'] = df['rating'].fillna(df['rating'].mode()[0])
 
 # In[ ]:
 
+#-------Data Cleaning--------
+#menghapus data yang cast dan director nya kosong karena hasil akan melenceng jauh apabila kolom tersebut diganti dengan nilai modus
 
 df = df.dropna( how='any',subset=['cast', 'director'])
 
-
-
-# - dataset has 0 duplicated values.
-
-# ### --> Cleaning the data
-
-# Adding some new columns:
-# - listed_in - Genre
-# * Year Added - year_add
-# * Month Added - month_add
-# * Princial Country - country_main 
-
 # In[ ]:
 
 
-#Rename the 'listed_in' column as 'Genre' for easy understanding
-df = df.rename(columns={"listed_in":"Genre"})
-df['Genre'] = df['Genre'].apply(lambda x: x.split(",")[0])
-df['year_add'] = df['date_added'].apply(lambda x: x.split(" ")[-1])
-df['month_add'] = df['date_added'].apply(lambda x: x.split(" ")[0])
-df['country_main'] = df['country'].apply(lambda x: x.split(",")[0])
-
-# ## 4. Netflix Recommendation System
-
-# ## Content Based Filtering
-
-# - For this recommender system the content of the movie (cast, description, director,genre etc) is used to find its similarity with other movies. Then the movies that are most likely to be similar are recommended.
-
-# ![](https://miro.medium.com/max/998/1*O_GU8xLVlFx8WweIzKNCNw.png)
-
-# ## Plot description based Recommender
-
-# - We will calculate similarity scores for all movies based on their plot descriptions and recommend movies based on that similarity score. The plot description is given in the **description** feature of our dataset.
-
-
 # In[ ]:
+#---------Data Reduction---------
+#Mengambil kolom yang dibutuhkan untuk perhitungan saja
 
-
-features=['Genre','director','cast','description','title']
+features=['listed_in','director','cast','description','title']
 filters = df[features]
 
+# In[ ]
+#------Data Understanding---------
+#Mengubah kolom listed_in menjadi Genre agar mudah dalam proses nantinya
+filters = filters.rename(columns={"listed_in":"Genre"})
+
+features=['Genre','director','cast','description','title']
+#Memastikan apakah masih ada data NULL atau tidak
+filters.isnull().sum()
 
 # In[ ]:
-
-
-#Cleaning the data by making all the words in lower case.
-def clean_data(x):
+#-------Data Preparation---------
+#mendefinisikan fungsi untuk mengubah data menjadi huruf kecil semua dan menghapus spasi
+def to_lower(x):
         return str.lower(x.replace(" ", ""))
 
 
 # In[ ]:
 
-
+#-------Data Preparation---------
+#menggunakan fungsi to_lower pada data yang sudah direduksi sebelumnya
 for feature in features:
-    filters[feature] = filters[feature].apply(clean_data)
-    
-filters.head()
-
-
-# - We can now create our "metadata soup", which is a string that contains all the metadata that we want to feed to our vectorizer.
+    filters[feature] = filters[feature].apply(to_lower)
 
 # In[ ]:
-
-
-def create_soup(x):
+#-------Data Transformation--------
+#mendefinisikan fungsi untuk membuat metadata yang berisi director, cast, genre, dan description
+def metadata(x):
     return x['director'] + ' ' + x['cast'] + ' ' +x['Genre']+' '+ x['description']
 
 
 # In[ ]:
-
-
-filters['soup'] = filters.apply(create_soup, axis=1)
-
-
-# The next steps are the same as what we did with our plot description based recommender. One important difference is that we use the **CountVectorizer()** instead of TF-IDF.
+#-------Data Transformation---------
+#menggunakan fungsi metadata pada filters kemudian disimpan pada filters['metadata']
+#axis=1 berguna agar data yang diambil adalah untuk setiap baris dari filters
+filters['metadata'] = filters.apply(metadata, axis=1)
 
 # In[ ]:
-
-
-# Import CountVectorizer and create the count matrix
+# ------Modeling---------
+# menggunakan countVectorizer untuk menghitung frekuensi setiap kata pada metadata dari masing-masing film
+# hasil perhitungan frekuensi disimpan pada variable count_matrix
 from sklearn.feature_extraction.text import CountVectorizer
 
 count = CountVectorizer(stop_words='english')
-count_matrix = count.fit_transform(filters['soup'])
-
+count_matrix = count.fit_transform(filters['metadata'])
 
 # In[ ]:
 
-
-# Compute the Cosine Similarity matrix based on the count_matrix
 from sklearn.metrics.pairwise import cosine_similarity
 
-cosine_sim2 = cosine_similarity(count_matrix, count_matrix)
+# Menghitung cosine similarity berdasarkan nilai frekuensi setiap kata pada variable count_matrix sebelumnya
+# sehingga akan menghasilkan matrix cosine similarity dari seluruh film yang akan disimpan pada variable cosine_sim
+cosine_sim = cosine_similarity(count_matrix, count_matrix)
 
 
 # In[ ]:
 
-
-filters
-
-
-# In[ ]:
-
-
-# Reset index of our main DataFrame and construct reverse mapping as before
+#---------Evaluation-----------
+# Mengembalikan index agar diawali dari index 0 
 filters=filters.reset_index()
+
+#In[ ]:
+#---------Evaluation-----------
+#mengubah index menjadi title untuk memudahkan dalam mengetahui index dari judul film yg pernah ditonton nantinya
 indices = pd.Series(filters.index, index=filters['title'])
 
 
 # In[ ]:
-
-
-def get_recommendations_new(title, cosine_sim):
+# ----------Evaluation---------
+def get_recommendations(title, cosine_sim):
+    # menghapus spasi dan mengubah jadi huruf kecil
     title=title.replace(' ','').lower()
+    # mengambil index dari judul film yang pernah ditonton
     idx = indices[title]
 
-    # Get the pairwsie similarity scores of all movies with that movie
+    # menghitung kemiripan film yang pernah ditonton dengan semua film yang ada
     sim_scores = list(enumerate(cosine_sim[idx]))
 
-    # Sort the movies based on the similarity scores
+    # mengurutkan nilai berdasarkan terbesar ke terkecil
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
 
-    # Get the scores of the 10 most similar movies
+    # mengambil skor 10 film paling mirip
+    # index 0 dilewati karena index 0 berisi film itu sendiri
     sim_scores = sim_scores[1:11]
 
-    # Get the movie indices
+    # mengambil index dari 10 film paling mirip
     movie_indices = [i[0] for i in sim_scores]
 
-    # Return the top 10 most similar movies
-    return df['title'].iloc[movie_indices]
+    # mengembalikan judul dari 10 film paling mirip berdasarkan index sebelumnya
+    return df['title'].iloc[movie_indices][:10]
 
 
 # In[ ]:
@@ -191,7 +135,7 @@ def get_recommendations_new(title, cosine_sim):
 #In[ ]:
 from flask import request
 from flask import Flask, render_template
-
+# ------Deployment---------
 app = Flask(__name__)
 @app.route("/")
 def hello():
@@ -202,9 +146,9 @@ def hello():
 def submit():
     list_film = df['title'][0:400].tolist()
     title = request.form['film']
-    result = get_recommendations_new(title, cosine_sim2).to_list()
+    result = get_recommendations(title, cosine_sim).to_list()
 
-    return render_template('index.html', result = result[0:10], title = title, film = list_film)
+    return render_template('index.html', result = result, title = title, film = list_film)
  
 
 if __name__ == "__main__":
